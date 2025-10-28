@@ -22,9 +22,9 @@ import("${chip_root}/src/ble/ble.gni")
 import("${chip_root}/src/platform/device.gni")
 import("${chip_root}/src/tracing/tracing_args.gni")
 
-# chip_root relative to root_build_dir for macro-prefix-map.
-# "/." avoids trailing "/" in result when chip_root is "//"
-build_relative_chip_root = rebase_path("${chip_root}/.", root_build_dir)
+declare_args() {
+  chip_supports_fmacro_prefix_map = true
+}
 
 config("includes") {
   include_dirs = [
@@ -41,7 +41,13 @@ config("includes") {
   defines = [ "CHIP_HAVE_CONFIG_H=1" ]
 
   # Make __FILE__ and related macros relative to chip_root
-  cflags = [ "-fmacro-prefix-map=${build_relative_chip_root}/=" ]
+  cflags = []
+  if (chip_supports_fmacro_prefix_map) {
+    # chip_root relative to root_build_dir for macro-prefix-map.
+    # "/." avoids trailing "/" in result when chip_root is "//"
+    build_relative_chip_root = rebase_path("${chip_root}/.", root_build_dir)
+    cflags += [ "-fmacro-prefix-map=${build_relative_chip_root}/=" ]
+  }
 }
 
 if (chip_build_tests) {

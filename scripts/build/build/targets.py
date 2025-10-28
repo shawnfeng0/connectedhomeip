@@ -209,6 +209,33 @@ def BuildHostTarget():
     return target
 
 
+def BuildAndroidHostTarget():
+    target = BuildTarget('android-host', HostBuilder)
+
+    target.AppendFixedTargets([
+        TargetPart('arm64', board=HostBoard.ANDROID_ARM64,
+                   use_clang=True, crypto_library=HostCryptoLibrary.MBEDTLS),
+    ])
+
+    target.AppendFixedTargets([
+        TargetPart('light', app=HostApp.LIGHT),
+        TargetPart('light-data-model-no-unique-id', app=HostApp.LIGHT_DATA_MODEL_NO_UNIQUE_ID),
+    ])
+
+    target.AppendModifier('no-ble', enable_ble=False)
+    target.AppendModifier('no-wifipaf', enable_wifipaf=False)
+    target.AppendModifier('no-wifi', enable_wifi=False)
+    target.AppendModifier('no-thread', enable_thread=False)
+    target.AppendModifier('ipv6only', enable_ipv4=False)
+    target.AppendModifier('rpc', enable_rpcs=True)
+    target.AppendModifier('boringssl', crypto_library=HostCryptoLibrary.BORINGSSL).ExceptIfRe('-mbedtls')
+    target.AppendModifier('asan', use_asan=True).ExceptIfRe('-tsan')
+    target.AppendModifier('tsan', use_tsan=True).ExceptIfRe('-asan')
+    target.AppendModifier('ubsan', use_ubsan=True)
+
+    return target
+
+
 def BuildEsp32Target():
     target = BuildTarget('esp32', Esp32Builder)
 
@@ -858,6 +885,7 @@ BUILD_TARGETS = [
     BuildAmebaTarget(),
     BuildASRTarget(),
     BuildAndroidTarget(),
+    BuildAndroidHostTarget(),
     BuildBouffalolabTarget(),
     Buildcc32xxTarget(),
     BuildCC13x4Target(),

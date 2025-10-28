@@ -55,10 +55,16 @@ CHIP_ERROR NamedPipeCommands::Stop()
     mStarted  = false;
     mDelegate = nullptr;
 
+#if defined(__ANDROID__)
+    // Android's Bionic libc does not provide pthread_cancel, so detach to avoid leaks and rely on
+    // FIFO cleanup below to unwind the listener thread naturally.
+    VerifyOrReturnError(pthread_detach(mChipEventCommandListener) == 0, CHIP_ERROR_SHUT_DOWN);
+#else
     VerifyOrReturnError(pthread_cancel(mChipEventCommandListener) == 0, CHIP_ERROR_CANCELLED);
 
     // Wait further for the thread to terminate if we had previously created it.
     VerifyOrReturnError(pthread_join(mChipEventCommandListener, nullptr) == 0, CHIP_ERROR_SHUT_DOWN);
+#endif
 
     VerifyOrReturnError(unlink(mChipEventFifoPath.c_str()) == 0, CHIP_ERROR_WRITE_FAILED);
     mChipEventFifoPath.clear();
