@@ -16,6 +16,10 @@ import("//build_overrides/build.gni")
 
 import("${build_root}/toolchain/gcc_toolchain.gni")
 
+declare_args() {
+  chip_linux_arm64_toolchain_root = ""
+}
+
 gcc_toolchain("linux_x64_gcc") {
   toolchain_args = {
     current_os = "linux"
@@ -85,6 +89,12 @@ gcc_toolchain("linux_arm64_gcc") {
 }
 
 gcc_toolchain("linux_arm64_clang") {
+  if (chip_linux_arm64_toolchain_root != "") {
+    _bin_dir = chip_linux_arm64_toolchain_root + "/bin"
+    ar = _bin_dir + "/aarch64-linux-android-ar"
+    cc = _bin_dir + "/aarch64-linux-android-clang"
+    cxx = _bin_dir + "/aarch64-linux-android-clang++"
+  }
   toolchain_args = {
     current_os = "linux"
     current_cpu = "arm64"

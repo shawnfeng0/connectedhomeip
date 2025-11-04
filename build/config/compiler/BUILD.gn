@@ -59,6 +59,18 @@ declare_args() {
   # Enable or disable support for C++ exceptions.
   enable_exceptions = false
 
+  # Target triple used for linux arm64 clang builds.
+  chip_linux_arm64_target_triple = "aarch64-linux-gnu"
+
+  # Controls whether linux builds link against libpthread by default.
+  chip_runtime_link_pthread = true
+
+  # Controls whether linux builds link against librt by default.
+  chip_runtime_link_rt = true
+
+  # Additional runtime libraries to link with, if any.
+  chip_runtime_extra_libs = []
+
   # Disable this to allow for overriding built-in defines, such as __FILE__.
   warn_builtin_macro_redefined = true
 }
@@ -96,7 +108,7 @@ config("abi_default") {
         if (current_cpu == "arm") {
           cflags += [ "--target=armv7-linux-gnueabihf" ]
         } else if (current_cpu == "arm64") {
-          cflags += [ "--target=aarch64-linux-gnu" ]
+          cflags += [ "--target=${chip_linux_arm64_target_triple}" ]
         }
       }
 
@@ -402,14 +414,20 @@ config("runtime_default") {
       "$dir_pw_toolchain/host_clang:xcode_sysroot",
     ]
   }
+  libs = []
   if (current_os == "linux" || current_os == "tizen" || current_os == "webos") {
-    libs = [
+    libs += [
       "atomic",
       "dl",
-      "pthread",
-      "rt",
     ]
+    if (chip_runtime_link_pthread) {
+      libs += [ "pthread" ]
+    }
+    if (chip_runtime_link_rt) {
+      libs += [ "rt" ]
+    }
   }
+  libs += chip_runtime_extra_libs
 
   cflags = []
   ldflags = []

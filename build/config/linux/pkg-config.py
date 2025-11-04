@@ -156,7 +156,15 @@ def main():
         libdir = SetConfigPath(options)
         if options.debug:
             sys.stderr.write('PKG_CONFIG_LIBDIR=%s\n' % libdir)
-        prefix = GetPkgConfigPrefixToStrip(options, args)
+        try:
+            prefix = GetPkgConfigPrefixToStrip(options, args)
+        except subprocess.CalledProcessError:
+            if options.optional:
+                sys.stderr.write('Ignoring failure to run pkg-config for optional library.\n')
+                print(json.dumps([False]))
+                return 0
+            sys.stderr.write('Could not run pkg-config.\n')
+            return 1
     else:
         prefix = ''
 

@@ -14,6 +14,7 @@
 
 import os
 import shlex
+from pathlib import Path
 from enum import Enum, auto
 from platform import uname
 from typing import Optional
@@ -551,12 +552,30 @@ class HostBuilder(GnBuilder):
         if self.board == HostBoard.NATIVE:
             return self.extra_gn_options
         elif self.board == HostBoard.ARM64:
-            self.extra_gn_options.extend(
-                [
-                    'target_cpu="arm64"',
-                    'sysroot="%s"' % self.SysRootPath('SYSROOT_AARCH64')
-                ]
-            )
+            toolchain_info = self._resolve_arm64_toolchain()
+            if toolchain_info:
+                toolchain_root, sysroot_path = toolchain_info
+                self.extra_gn_options.extend(
+                    [
+                        'target_cpu="arm64"',
+                        'target_os="linux"',
+                        'sysroot="%s"' % sysroot_path.as_posix(),
+                        'chip_linux_arm64_toolchain_root="%s"' % toolchain_root.as_posix(),
+                        'chip_linux_arm64_target_triple="aarch64-linux-android24"',
+                        'chip_runtime_link_pthread=false',
+                        'chip_runtime_link_rt=false',
+                        'chip_runtime_extra_libs=["log"]',
+                        'matter_enable_tracing_support=false',
+                        'chip_supports_fmacro_prefix_map=false',
+                    ]
+                )
+            else:
+                self.extra_gn_options.extend(
+                    [
+                        'target_cpu="arm64"',
+                        'sysroot="%s"' % self.SysRootPath('SYSROOT_AARCH64')
+                    ]
+                )
 
             return self.extra_gn_options
         elif self.board == HostBoard.FAKE:
@@ -584,8 +603,26 @@ class HostBuilder(GnBuilder):
 
     def GnBuildEnv(self):
         if self.board == HostBoard.ARM64:
-            self.build_env['PKG_CONFIG_PATH'] = os.path.join(
-                self.SysRootPath('SYSROOT_AARCH64'), 'lib/aarch64-linux-gnu/pkgconfig')
+            toolchain_info = self._resolve_arm64_toolchain()
+            if toolchain_info:
+                _, sysroot_path = toolchain_info
+                pkg_paths = []
+                for rel in (
+                    'usr/lib/pkgconfig',
+                    'usr/lib/aarch64-linux-gnu/pkgconfig',
+                    'usr/lib/aarch64-linux-android/pkgconfig',
+                    'lib/pkgconfig',
+                    'lib/aarch64-linux-gnu/pkgconfig',
+                    'lib/aarch64-linux-android/pkgconfig',
+                ):
+                    candidate = sysroot_path / rel
+                    if candidate.is_dir():
+                        pkg_paths.append(candidate.as_posix())
+                if pkg_paths:
+                    self.build_env['PKG_CONFIG_PATH'] = ':'.join(pkg_paths)
+            else:
+                self.build_env['PKG_CONFIG_PATH'] = os.path.join(
+                    self.SysRootPath('SYSROOT_AARCH64'), 'lib/aarch64-linux-gnu/pkgconfig')
         if self.app == HostApp.TESTS and self.use_coverage and self.use_clang and self.fuzzing_type == HostFuzzingType.NONE:
             # Every test is expected to have a distinct build ID, so `%m` will be
             # distinct.
@@ -599,6 +636,32 @@ class HostBuilder(GnBuilder):
         if name not in os.environ:
             raise Exception('Missing environment variable "%s"' % name)
         return os.environ[name]
+
+    def _resolve_arm64_toolchain(self):
+        if self.board != HostBoard.ARM64:
+            return None
+
+        candidates = []
+
+        env_candidate = os.environ.get('LINUX_ARM64_TOOLCHAIN_ROOT')
+        if env_candidate:
+            candidates.append(Path(env_candidate).expanduser())
+
+        default_candidate = Path('~/android-ndk/android-ndk-r21e-standalone').expanduser()
+        if default_candidate not in candidates:
+            candidates.append(default_candidate)
+
+        for root in candidates:
+            bin_dir = root / 'bin'
+            clang = bin_dir / 'aarch64-linux-android-clang'
+            clangxx = bin_dir / 'aarch64-linux-android-clang++'
+            ar = bin_dir / 'aarch64-linux-android-ar'
+            sysroot_path = root / 'sysroot'
+
+            if clang.exists() and clangxx.exists() and ar.exists() and sysroot_path.exists():
+                return root, sysroot_path
+
+        return None
 
     def generate(self):
         super(HostBuilder, self).generate()
